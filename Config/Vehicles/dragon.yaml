@@ -1,0 +1,8 @@
+# Properties
+  name        : "Dragon"
+  mass        : 100.0                   #kg
+  inertia     : [100.0, 50.0, 25.0]     #kg*m^2
+  model       : "Models/CrewDragon.stl"
+  axis_order  : [2, 0, 1]
+  nav_red     : [.33, 0.105, 0]
+  nav_green   : [.33, -0.11, 0]
