@@ -1,11 +1,11 @@
 import os
 import yaml
-import quaternion
 import numpy as np
 
-import Core.satellite as sat
 import Core.simulator as sim
+import Core.visualizer as vis
 import Dynamics.body as body
+import Dynamics.satellite as sat
 import utils.OEConvert as OEConvert
 
 def populate_sim(sim_file):
@@ -17,6 +17,7 @@ def populate_sim(sim_file):
 
     sim_properties  = config["sim"]
     body_name       = sim_properties["central_body"]
+    t0              = sim_properties["t0"]
     tf              = sim_properties["tf"]
     dt              = sim_properties["dt"]
     save_loc        = sim_properties["save_loc"]
@@ -38,6 +39,7 @@ def populate_sim(sim_file):
         mass        = sat_props["mass"]
         J           = np.diag(sat_props["inertia"])
         model       = sat_props["model"]
+        colorscale  = sat_props["colorscale"]
         axis_order  = sat_props["axis_order"]
         lights      = np.array([sat_props["nav_red"], 
                                 sat_props["nav_green"]])
@@ -71,9 +73,22 @@ def populate_sim(sim_file):
         state       = np.hstack((state, quat, omega_body))
 
         mass_prop   = (mass, J)
-        visual_prop = (model, axis_order, lights)
-        satellite   = sat.Satellite(name, state, mass_prop, visual_prop)
+        visual_prop = (model, colorscale, axis_order, lights)
+        satellite   = sat.Satellite(name, t0, state, mass_prop, visual_prop, central_body.mu)
         sats.append(satellite)
 
-    simulator = sim.Simulator(central_body, tf, dt, sats, save_file)
+    simulator = sim.Simulator(central_body, t0, tf, dt, sats, save_file)
     return simulator
+
+def load_vis(vis_file):
+    with open(vis_file, 'r') as file:
+        vis_config = yaml.safe_load(file)
+
+    load_file   = vis_config["loadfile"]
+    num_frames  = vis_config["num_frames"]
+
+    sim_data    = np.load(load_file, allow_pickle=True).item()
+    num_states  = sim_data.satellites[0].state_history.shape[0]
+    frame_rate  = int(num_states / num_frames)
+    visualizer  = vis.Visualizer(sim_data, frame_rate)
+    return visualizer

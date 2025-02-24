@@ -1,6 +1,7 @@
 sim:
   central_body  : "Earth"
-  tf            : 5580              #sec
+  t0            : 2024-04-08T18:18:00 #sec
+  tf            : 5580                #sec
   dt            : 1                   #sec
   save_loc      : "output"
   save_file     : "sim.npy"

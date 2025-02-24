@@ -1,0 +1,2 @@
+loadfile    : "output/sim.npy"
+num_frames  : 100

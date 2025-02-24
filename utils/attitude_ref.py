@@ -1,46 +1,53 @@
+import quaternion
 import numpy as np
 import utils.OEConvert as OEConvert
 
-def icrs2eci(icrsState, earth_state):
-    axial_tilt  = np.radians(23.44)
-    icrsState   = icrsState - earth_state
-    dcm         = np.array([[1, 0,                      0],
-                            [0, np.cos(axial_tilt),     np.sin(axial_tilt)],
-                            [0, -np.sin(axial_tilt),    np.cos(axial_tilt)]])
-    eciState        = np.zeros(icrsState.shape)
-    eciState[0:3]   = np.matmul(dcm, icrsState[0:3].T).T
-    eciState[3:6]   = np.matmul(dcm, icrsState[3:6].T).T
-    return eciState
+# def icrs2eci(icrsState, earth_state):
+#     axial_tilt  = np.radians(23.44)
+#     icrsState   = icrsState - earth_state
+#     dcm         = np.array([[1, 0,                      0],
+#                             [0, np.cos(axial_tilt),     np.sin(axial_tilt)],
+#                             [0, -np.sin(axial_tilt),    np.cos(axial_tilt)]])
+#     eciState        = np.zeros(icrsState.shape)
+#     eciState[0:3]   = np.matmul(dcm, icrsState[0:3].T).T
+#     eciState[3:6]   = np.matmul(dcm, icrsState[3:6].T).T
+#     return eciState
 
-def eci2icrs(eciState, earth_state):
-    axial_tilt  = np.radians(23.44)
-    dcm         = np.array([[1, 0,                  0],
-                            [0, np.cos(axial_tilt), -np.sin(axial_tilt)],
-                            [0, np.sin(axial_tilt), np.cos(axial_tilt)]])
-    icrsState       = np.zeros(eciState.shape)
-    icrsState[0:3]  = np.matmul(dcm, eciState[0:3].T).T
-    icrsState[3:6]  = np.matmul(dcm, eciState[3:6].T).T
-    return icrsState + earth_state
+# def eci2icrs(eciState, earth_state):
+#     axial_tilt  = np.radians(23.44)
+#     dcm         = np.array([[1, 0,                  0],
+#                             [0, np.cos(axial_tilt), -np.sin(axial_tilt)],
+#                             [0, np.sin(axial_tilt), np.cos(axial_tilt)]])
+#     icrsState       = np.zeros(eciState.shape)
+#     icrsState[0:3]  = np.matmul(dcm, eciState[0:3].T).T
+#     icrsState[3:6]  = np.matmul(dcm, eciState[3:6].T).T
+#     return icrsState + earth_state
 
-def eci2ecef(eciState, days_since_j2000):
-    gamma   = np.radians(360.9856123035484*days_since_j2000 + 280.46)
-    dcm     = np.array([[np.cos(gamma),     np.sin(gamma),  0],
-                        [-np.sin(gamma),    np.cos(gamma),  0],
-                        [0,                 0,              1]])
-    ecefState       = np.zeros(eciState.shape)
-    ecefState[0:3]  = np.matmul(dcm, eciState[0:3].T).T
-    ecefState[3:6]  = np.matmul(dcm, eciState[3:6].T).T
-    return ecefState
+def eci2ecef(eci_state, days_since_j2000):
+        q_inertial_to_ecef, omega_ecef = get_inertial_to_ecef(days_since_j2000)
+        ecef_state      = np.zeros(6)
+        ecef_state[0:3] = quaternion.rotate_vectors(q_inertial_to_ecef, eci_state[0:3])
+        ecef_state[3:6] = quaternion.rotate_vectors(q_inertial_to_ecef, eci_state[3:6]) \
+                            + np.cross(omega_ecef, ecef_state[0:3])
+        return ecef_state
 
-def ecef2eci(ecefState, days_since_j2000):
-    gamma   = np.radians(360.9856123035484*days_since_j2000 + 280.46)
-    dcm     = np.array([[np.cos(gamma), -np.sin(gamma), 0],
-                        [np.sin(gamma), np.cos(gamma),  0],
-                        [0,             0,              1]])
-    eciState        = np.zeros(ecefState.shape)
-    eciState[0:3]   = np.matmul(dcm, ecefState[0:3].T).T
-    eciState[3:6]   = np.matmul(dcm, ecefState[3:6].T).T
-    return eciState
+def ecef2eci(ecef_state, days_since_j2000):
+    q_ecef_to_inertial, omega_ecef = get_ecef_to_inertial(days_since_j2000)
+    eci_state       = np.zeros(6)
+    eci_state[0:3]  = quaternion.rotate_vectors(q_ecef_to_inertial, ecef_state[0:3])
+    eci_state[3:6]  = quaternion.rotate_vectors(q_ecef_to_inertial, ecef_state[3:6]) \
+                        + np.cross(omega_ecef, eci_state[0:3])
+    return eci_state
+
+def get_inertial_to_ecef(days_since_j2000):
+    degrees_per_day     = 360.9856123035484
+    gamma               = np.radians(degrees_per_day*days_since_j2000 + 280.46)
+    R_inertial_to_ecef  = np.array([[np.cos(gamma),     np.sin(gamma),  0],
+                                    [-np.sin(gamma),    np.cos(gamma),  0],
+                                    [0,                 0,              1]])
+    q_inertial_to_ecef  = quaternion.from_rotation_matrix(R_inertial_to_ecef)
+    omega_ecef  = np.array([0, 0, degrees_per_day/(24*3600)])
+    return q_inertial_to_ecef, omega_ecef
 
 def get_ecef_to_inertial(days_since_j2000):
     degrees_per_day     = 360.9856123035484
@@ -48,9 +55,9 @@ def get_ecef_to_inertial(days_since_j2000):
     R_ecef_to_inertial  = np.array([[np.cos(gamma), -np.sin(gamma), 0],
                                     [np.sin(gamma), np.cos(gamma),  0],
                                     [0,             0,              1]])
-    omega_ecef  = np.array([0, 0, degrees_per_day/(24*3600)])
-    return R_ecef_to_inertial, omega_ecef
-    
+    q_ecef_to_inertial  = quaternion.from_rotation_matrix(R_ecef_to_inertial)
+    omega_ecef  = np.array([0, 0, -degrees_per_day/(24*3600)])
+    return q_ecef_to_inertial, omega_ecef
 
 def get_hill_to_inertial(state, mu_earth):
     '''
@@ -67,11 +74,12 @@ def get_hill_to_inertial(state, mu_earth):
 
     # Rotation matrix from Hill to Inertial
     R_hill_to_inertial = np.array([r_normalized, np.cross(h_normalized, r_normalized), h_normalized]).T
-    
+    q_hill_to_inertial = quaternion.from_rotation_matrix(R_hill_to_inertial)
+
     a           = OEConvert.semimajor_axis(state, mu_earth)
     n           =  np.sqrt(mu_earth/a**3)
     omega_hill  = np.array([0, 0, n])
-    return R_hill_to_inertial, omega_hill
+    return q_hill_to_inertial, omega_hill
 
 def get_lvlh_to_inertial(state, mu_earth):
     '''
@@ -88,11 +96,12 @@ def get_lvlh_to_inertial(state, mu_earth):
 
     # Rotation matrix from Hill to Inertial
     R_lvlh_to_inertial = np.array([np.cross(-h_normalized, -r_normalized), -h_normalized, -r_normalized]).T
+    q_lvlh_to_inertial = quaternion.from_rotation_matrix(R_lvlh_to_inertial)
     
     a           = OEConvert.semimajor_axis(state, mu_earth)
     n           =  np.sqrt(mu_earth/a**3)
     omega_lvlh  = np.array([0, n, 0])
-    return R_lvlh_to_inertial, omega_lvlh
+    return q_lvlh_to_inertial, omega_lvlh
 
 def ecef2lla(ecefState):
     x = ecefState[0]

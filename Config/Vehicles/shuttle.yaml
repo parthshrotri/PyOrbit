@@ -3,6 +3,7 @@
   mass        : 100.0               #kg
   inertia     : [100.0, 50.0, 25.0] #kg*m^2
   model       : "Models/Shuttle.stl"
+  colorscale  : "Purples"
   axis_order  : [0, 1, 2]
   nav_red     : [-.137, 0.31, -0.06]
   nav_green   : [-.137, -0.31, -0.06]

@@ -4,27 +4,49 @@ import quaternion
 import plotly.graph_objects as go
 from stl import mesh
 from tqdm import tqdm
+import utils.plot as plot
 
 # Plotting utility to generate the data for each frame of the animation
-def get_frame_data(posits, orients, idx, quat_targ, vehicle_data, scale):
+def get_3d_frame_data(plot_states, idx, vehicle_data, scale, draw_thrusters):
     # Unpack input data
-    pos         = posits[idx, 0:3]
-    quat        = np.quaternion(orients[idx, 0], 
-                                orients[idx, 1], 
-                                orients[idx, 2], 
-                                orients[idx ,3])
+    pos         = plot_states[idx, 0:3]
+    orient      = plot_states[idx, 3:7]
+    quat_targ   = plot_states[idx, 7:11]
+    quat        = quaternion.from_float_array(orient)
+    quat_targ   = quaternion.from_float_array(quat_targ)
 
-    quat_targ   = np.quaternion(quat_targ[0], 
-                                quat_targ[1], 
-                                quat_targ[2], 
-                                quat_targ[3])
+    # Create the spacecraft trajectory
+    spacecraft_traj = draw_traj(plot_states[:, 0:3], idx, vehicle_data[2])
+
+    # Plot the spacecraft axes
+    sc_axes    = draw_spacecraft_axes(pos, quat, scale)
     
-    sc_scaled   = vehicle_data[0]*scale
-    vertices    = vehicle_data[1]
+    # Plot the target axes
+    targ_axes   = draw_target_axes(pos, quat_targ, scale)
+    
+    # Plot the spacecraft
+    spacecraft = draw_spacecraft(pos, quat, vehicle_data, scale, draw_thrusters)
+    
+    # Add all the objects to the list
+    objs = spacecraft_traj
+    objs.extend(targ_axes)
+    objs.extend(sc_axes)
+    objs.extend(spacecraft)
+    return objs
 
+def draw_traj(posits, idx, colorscale):
+    spacecraft_traj  = go.Scatter3d(x=posits[0:idx,0],
+                                    y=posits[0:idx,1],
+                                    z=posits[0:idx,2],
+                                    mode="lines",
+                                    line=dict(width=5, colorscale=colorscale, 
+                                              color=np.arange(0, idx, 1), 
+                                              showscale=False))
+    return [spacecraft_traj]
+
+def draw_spacecraft_axes(pos, orient, scale):
     # Convert the quaternion to a rotation matrix to get the axes
-    rot         = quaternion.as_rotation_matrix(quat)
-    rot_targ    = quaternion.as_rotation_matrix(quat_targ)
+    rot         = quaternion.as_rotation_matrix(orient)
 
     # Create the data for the plot
     # Plot the spacecraft axes
@@ -54,7 +76,11 @@ def get_frame_data(posits, orients, idx, quat_targ, vehicle_data, scale):
                                z=z_z_comps,
                                mode="lines", 
                                line=dict(width=3, color="blue"))
-    
+    return [x_axis_obj, y_axis_obj, z_axis_obj]
+
+def draw_target_axes(pos, orient, scale):
+    rot_targ    = quaternion.as_rotation_matrix(orient)
+
     # Plot the target axes
     x_target_x_comps    = [pos[0], pos[0] + rot_targ[0,0]*scale]
     x_target_y_comps    = [pos[1], pos[1] + rot_targ[0,1]*scale]
@@ -135,16 +161,16 @@ def get_frame_data(posits, orients, idx, quat_targ, vehicle_data, scale):
                                   colorscale = [[0, "blue"], [1, "blue"]],
                                   showscale = False)
     
-    # Plot the spacecraft Trajectory
-    spacecraft_traj  = go.Scatter3d(x=posits[0:idx,0],
-                                    y=posits[0:idx,1],
-                                    z=posits[0:idx,2],
-                                    mode="lines",
-                                    line=dict(width=5, 
-                                              colorscale="Oranges", 
-                                              color=np.arange(0, idx, 1), 
-                                              showscale=False))
-    
+    return [x_target_obj, y_target_obj, z_target_obj, x_targ_cone, y_targ_cone, z_targ_cone]
+
+def draw_spacecraft(pos, orient, vehicle_data, scale, plot_thrusters):
+    # Unpack input data    
+    sc_scaled   = vehicle_data[0]*scale
+    vertices    = vehicle_data[1]
+
+    # Convert the quaternion to a rotation matrix to get the axes
+    rot         = quaternion.as_rotation_matrix(orient)
+
     # Rotate and translate points of the spacecraft model
     spacecraft_rot   = np.dot(sc_scaled, rot) + pos
 
@@ -173,35 +199,9 @@ def get_frame_data(posits, orients, idx, quat_targ, vehicle_data, scale):
                                   marker=dict(size=2, color="green"))
 
     # Add all the objects to the list
-    objs =[spacecraft_traj,
-            x_axis_obj,
-            y_axis_obj,
-            z_axis_obj,
-            x_target_obj,
-            y_target_obj,
-            z_target_obj,
-            x_targ_cone, 
-            y_targ_cone, 
-            z_targ_cone,
-            spacecraft, 
-            red_light, 
-            green_light]
+    objs    = [spacecraft, red_light, green_light]
     
     return objs
-
-def draw_planet(planet):
-    # Polar coordinates
-    theta   = np.linspace(0, 2.*np.pi, 40)
-    phi     = np.linspace(0, np.pi, 40)
-
-    # Convert to cartesian
-    x       = planet.radius * np.outer(np.cos(theta), np.sin(phi))
-    y       = planet.radius * np.outer(np.sin(theta), np.sin(phi))
-    z       = planet.radius * np.outer(np.ones(np.size(theta)), np.cos(phi))
-
-    # Create the planet object
-    planet  = go.Surface(x=x, y=y, z=z, opacity=1.0, colorscale=planet.colors, showscale=False)
-    return planet
 
 # From @empet on plotly forum
 def stl2mesh3d(stl_mesh):
@@ -221,6 +221,7 @@ def format_model(satellite):
     # Unpack model location and axis order
     model       = satellite.model
     axis_order  = satellite.axis_order
+    colorscale  = satellite.colorscale
 
     # Get model data
     vehicle = mesh.Mesh.from_file(model)
@@ -247,37 +248,83 @@ def format_model(satellite):
     vehicle_points  = vehicle_points/max_range
     vehicle_points  = np.vstack((vehicle_points, satellite.lights)).astype(np.float64)
 
-    return vehicle_points, IJK
+    return [vehicle_points, IJK, colorscale]
 
-def create_animation(fig, plotformat, sat_pos, sat_orient, quat_targ_history, vehicle_model, update_rate):
+def create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, draw_thrusters, update_rate):
+    # Unpack the plot format
     title       = plotformat[0]
     scale       = plotformat[1]
     xaxis       = plotformat[2]
     yaxis       = plotformat[3]
     zaxis       = plotformat[4]
-    
-    vehicle_points, IJK = vehicle_model
 
     # Get the data for each frame
-    fig.update(frames=[go.Frame(data=[*get_frame_data(sat_pos, sat_orient, i*update_rate, 
-                                                      quat_targ_history[i*update_rate], 
-                                                      (vehicle_points, IJK), scale)], 
+    fig.update(frames=[go.Frame(data=[*get_3d_frame_data(sat_state_plot, i*update_rate,
+                                                      vehicle_model, scale, draw_thrusters)], 
                                 traces=[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) 
-                                for i in tqdm(range(1, round(len(sat_pos)/update_rate)))])
+                                for i in tqdm(range(1, round(len(sat_state_plot)/update_rate)))])
     
     fig.update_layout(title=dict(text=title),
+                      font=dict(family="Courier New, monospace",
+                                size=18,color="RebeccaPurple"),
                       transition = {'duration': 1},
                       scene=dict(aspectmode="cube",
-                                 xaxis=xaxis,
-                                 yaxis=yaxis,
-                                 zaxis=zaxis),
-                                 updatemenus=[dict(type="buttons",
-                                                   buttons=[dict(label="Play",
-                                                                 method="animate",
-                                                                 args=[None, {"frame": {"duration": 1, "redraw": True}}])])],
+                                 xaxis=xaxis,yaxis=yaxis,zaxis=zaxis),
+                                 updatemenus=[dict(type="buttons",buttons=[dict(label="Play",method="animate",
+                                                args=[None, {"frame": {"duration": 1, "redraw": True}}])])],
                         showlegend=False)
     return fig
 
+def format_states_for_plot(sat_pos, sat_orient, quat_targ_history):
+    sat_state_plot = np.zeros((len(sat_pos), 11))
+    sat_state_plot[:,0:3] = sat_pos
+    sat_state_plot[:,3:7] = sat_orient
+    sat_state_plot[:,7:11] = quat_targ_history
+    return sat_state_plot
+
+def att_hill(title, satellite, update_rate):
+    scale       = 1
+    xaxis       = dict(range=[-1.2, 1.2])
+    yaxis       = dict(range=[-1.2, 1.2])
+    zaxis       = dict(range=[-1.2, 1.2])
+    plotformat  = [title, scale, xaxis, yaxis, zaxis]
+
+    sat_pos             = np.zeros_like(satellite.state_history[:,0:3])
+    sat_orient          = satellite.hill_to_body_hist
+    quat_targ_history   = np.zeros((len(satellite.state_history), 4))
+    quat_targ_history[:,0] = 1
+
+    sat_state_plot  = format_states_for_plot(sat_pos, sat_orient, quat_targ_history)
+    vehicle_model   = format_model(satellite)
+    plot_thrusters  = True
+
+    frame_data  = get_3d_frame_data(sat_state_plot, 0, vehicle_model, scale, plot_thrusters)
+    fig         = go.Figure(data=frame_data)
+    
+    animation   = create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, plot_thrusters, update_rate)
+    return animation
+
+def att_lvlh(title, satellite, update_rate):
+    scale       = 1
+    xaxis       = dict(range=[-1.2, 1.2])
+    yaxis       = dict(range=[-1.2, 1.2])
+    zaxis       = dict(range=[-1.2, 1.2])
+    plotformat  = [title, scale, xaxis, yaxis, zaxis]
+
+    sat_pos             = np.zeros_like(satellite.state_history[:,0:3])
+    sat_orient          = satellite.lvlh_to_body_hist
+    quat_targ_history   = np.zeros((len(satellite.state_history), 4))
+    quat_targ_history[:,0] = 1
+
+    sat_state_plot  = format_states_for_plot(sat_pos, sat_orient, quat_targ_history)
+    vehicle_model   = format_model(satellite)
+    plot_thrusters  = True
+
+    frame_data  = get_3d_frame_data(sat_state_plot, 0, vehicle_model, scale, plot_thrusters)
+    fig         = go.Figure(data=frame_data)
+
+    animation   = create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, plot_thrusters, update_rate)
+    return animation
 
 def att_inertial(title, satellite, update_rate):
     scale       = 1
@@ -286,34 +333,38 @@ def att_inertial(title, satellite, update_rate):
     zaxis       = dict(range=[-1.2, 1.2])
     plotformat  = [title, scale, xaxis, yaxis, zaxis]
 
-    vehicle_model = format_model(satellite)
-
     sat_pos             = np.zeros_like(satellite.state_history[:,0:3])
     sat_orient          = satellite.state_history[:,6:10]
     quat_targ_history   = satellite.target_orient_history
 
-    frame_data  = get_frame_data(sat_pos, sat_orient, 0, quat_targ_history[0], vehicle_model, scale)
+    sat_state_plot  = format_states_for_plot(sat_pos, sat_orient, quat_targ_history)
+    vehicle_model   = format_model(satellite)
+    plot_thrusters  = True
+
+    frame_data  = get_3d_frame_data(sat_state_plot, 0, vehicle_model, scale, plot_thrusters)
     fig         = go.Figure(data=frame_data)
 
-    animation = create_animation(fig, plotformat, sat_pos, sat_orient, quat_targ_history, vehicle_model, update_rate)
+    animation = create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, plot_thrusters, update_rate)
     return animation
 
-def pci(title, satellite, planet, update_rate):
+def eci(title, satellite, planet, update_rate):
     scale   = 350000.0
     xaxis   = dict(range=[-9000e3, 9000e3])
     yaxis   = dict(range=[-9000e3, 9000e3])
     zaxis   = dict(range=[-9000e3, 9000e3])
     plotformat = [title, scale, xaxis, yaxis, zaxis]
-    
-    vehicle_model = format_model(satellite)
 
     sat_pos             = satellite.state_history[:,0:3]
     sat_orient          = satellite.state_history[:,6:10]
     quat_targ_history   = satellite.target_orient_history
 
-    frame_data  = get_frame_data(sat_pos, sat_orient, 0, quat_targ_history[0], vehicle_model, scale)
-    frame_data.append(draw_planet(planet))
+    sat_state_plot  = format_states_for_plot(sat_pos, sat_orient, quat_targ_history)
+    vehicle_model   = format_model(satellite)
+    plot_thrusters  = False
+
+    frame_data  = get_3d_frame_data(sat_state_plot, 0, vehicle_model, scale, plot_thrusters)
+    frame_data.append(plot.draw_planet(planet))
     fig         = go.Figure(data=frame_data)
 
-    animation = create_animation(fig, plotformat, sat_pos, sat_orient, quat_targ_history, vehicle_model, update_rate)
+    animation = create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, plot_thrusters, update_rate)
     return animation

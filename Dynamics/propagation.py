@@ -25,11 +25,15 @@ def J2_perturbation(r, mu, R, J2):
                                                                      (3 - 5*(r[2]/r_mag)**2)*r[2]/r_mag])
     return J2_pert
 
-def state_dot(t, state, mass, J, T_body, L_body, R, mu, J2):
+def state_dot(t, state, mass, J, T_body, L_body, central_body):
     pos     = state[0:3]
     vel     = state[3:6]
     quat    = np.quaternion(state[6], state[7], state[8], state[9])
     omega   = state[10:13]
+
+    R = central_body.radius
+    mu = central_body.mu
+    J2 = central_body.J2
 
     grav    = gravity(pos, mu)
     J2_pert = J2_perturbation(pos, mu, R, J2)
