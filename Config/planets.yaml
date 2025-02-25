@@ -2,6 +2,8 @@ Earth:
   radius        : 6378.1e3
   mu            : 3.986004418e14
   J2            : 1082.63e-6
+  year_length   : 365.256363004
+  sidereal_day  : 86164.0905
   colors        : [[0, 'rgb(159,193,100)'], [1, 'rgb(107,147,214)']]
   atmosphere:
     rho         : 1.225
@@ -10,11 +12,15 @@ Moon:
   radius        : 1737.4e3
   mu            : 4.9028e12
   J2            : 202.7e-6
+  year_length   : 27.321582
+  sidereal_day  : 2360591.5104
   colors        : [[0, 'rgb(148, 144, 141)'], [1, 'rgb(240, 240, 240)']]
 Mars:
   radius         : 3389.5e3
   mu             : 4.282837e13
   J2             : 1960.45e-6
+  year_length    : 686.980
+  sidereal_day   : 88642.7
   colors         : [[0, 'rgb(193,68,14)'], [1, 'rgb(240,231,231)']]
   atmosphere:
     rho           : .020
@@ -23,6 +29,8 @@ Venus:
   radius         : 6051.8e3
   mu             : 3.24859e14
   J2             : 4.458e-6
+  year_length    : 224.701
+  sidereal_day   : -20997152.64
   colors         : [[0, 'rgb(193,143,23)'], [1, 'rgb(231,213,32)']]
   atmosphere:
     rho          : 65
@@ -31,36 +39,50 @@ Mercury:
   radius         : 2439.7e3
   mu             : 2.2032e13
   J2             : 50.3e-6
+  year_length    : 87.9691
+  sidereal_day   : 5067000
   colors         : [[0, 'rgb(104,105,109)'], [1, 'rgb(231,232,236)']]
 Sun:
   radius         : 695700e3
   mu             : 1.32712440018e20
   J2             : 0
+  year_length    : 0
+  sidereal_day   : 0
   colors         : [[0, 'rgb(255, 228, 132)'], [1, 'rgb(209, 64, 9)']]
 Jupiter:
   radius         : 69911e3
   mu             : 1.26686534e17
   J2             : 14736e-6
+  year_length    : 4332.59
+  sidereal_day   : 35730
   colors         : [[0, 'rgb(165,145,134)'], [1, 'rgb(52, 165, 111)']]
 Saturn:
   radius         : 58232e3
   mu             : 3.7931187e16
   J2             : 16298e-6
+  year_length    : 10755.70
+  sidereal_day   : 38018
   colors         : [[0, 'rgb(40, 122, 184)'], [1, 'rgb(227,220,203)']]
 Uranus:
   radius         : 25362e3
   mu             : 5.793939e15
   J2             : 3343.43e-6
+  year_length    : 30688.5
+  sidereal_day   : -62063.712
   colors         : [[0, 'rgb(248,248,255)'], [1, 'rgb(209,231,231)']]
 Neptune:
   radius         : 24622e3
   mu             : 6.836529e15
   J2             : 3411e-6
+  year_length    : 60195
+  sidereal_day   : 58000.32
   colors         : [[0, 'rgb(39,70,135)'], [1, 'rgb(133,173,219)']]
 Pluto:
   radius         : 1188.3e3
   mu             : 8.71e11
   J2             : 0
+  year_length    : 90560
+  sidereal_day   : -551856.672
   colors         : [[0, 'rgb(255,241,213)'], [1, 'rgb(204,186,153)']]
   atmosphere:
     rho          : 0.00014593857

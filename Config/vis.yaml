@@ -1,2 +1,3 @@
 loadfile    : "output/sim.npy"
-num_frames  : 100
+animation:
+  num_frames  : 100

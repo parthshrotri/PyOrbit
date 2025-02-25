@@ -5,6 +5,8 @@ class Body:
         self.radius         = float(planet_data["radius"])
         self.mu             = float(planet_data["mu"])
         self.J2             = float(planet_data["J2"])
+        self.year_length    = float(planet_data["year_length"])
+        self.sidereal_day   = float(planet_data["sidereal_day"])
         self.colors         = planet_data["colors"]
 
         if "atmosphere" in planet_data.keys():

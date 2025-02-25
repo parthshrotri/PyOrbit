@@ -53,12 +53,21 @@ def populate_sim(sim_file):
             if "alt" in kep.keys():
                 a   = kep["alt"] + central_body.radius
             elif "semimajor" in kep.keys():
-                a   = kep["semimajor"]
+                if isinstance(kep["semimajor"], str):
+                    if kep["semimajor"] == "Synch":
+                        a = OEConvert.synch_orbit(central_body)
+                else:
+                    a   = kep["semimajor"]
             else:
                 print("No altitude or semimajor axis specified")
                 exit()
+
             e       = kep["ecc"]
-            i       = kep["inc"]
+            if isinstance(kep["inc"], str) :
+                if kep["inc"] == "SSO":
+                    i = OEConvert.sso_inclination(a, e, central_body)
+            else:
+                i   = kep["inc"]
             raan    = kep["raan"]
             argp    = kep["argp"]
             TA      = kep["TA"]
@@ -85,7 +94,7 @@ def load_vis(vis_file):
         vis_config = yaml.safe_load(file)
 
     load_file   = vis_config["loadfile"]
-    num_frames  = vis_config["num_frames"]
+    num_frames  = vis_config["animation"]["num_frames"]
 
     sim_data    = np.load(load_file, allow_pickle=True).item()
     num_states  = sim_data.satellites[0].state_history.shape[0]

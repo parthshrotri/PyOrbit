@@ -1,5 +1,5 @@
 import numpy as np
-import utils.display as disp
+import utils.format as disp
 
 def cartesian_to_keplerian(state, mu):
     a       = semimajor_axis(state, mu)
@@ -117,7 +117,25 @@ def angular_momentum_from_OE(a, e, mu):
         return np.sqrt(mu*a*(1-e**2))
     elif e < 0:
         return np.sqrt(mu*a*(e**2-1))
+    
+def sso_inclination(a, e, planet):
+    mu          = planet.mu
+    R     = planet.radius
+    J2    = planet.J2
+    year_length = planet.year_length
 
+    n_bar = np.sqrt(mu/a**3)
+    raan_rate_sso = 2*np.pi/(year_length * 24 * 3600)
+    i_rad = np.arccos(raan_rate_sso / ((-3/2 * (R/a)**2 * J2 * n_bar / (1-e**2)**2)))
+    i_deg = np.degrees(i_rad)
+    return i_deg
+
+def synch_orbit(planet):
+    mu          = planet.mu
+    r           = planet.radius
+    day_length  = planet.sidereal_day
+    a           = ((day_length / (2*np.pi))**2 * mu)**(1/3)
+    return a
 
 def position(kep, mu):
     a       = kep[0]
