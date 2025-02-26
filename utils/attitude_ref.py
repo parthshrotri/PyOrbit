@@ -23,43 +23,48 @@ import utils.OEConvert as OEConvert
 #     icrsState[3:6]  = np.matmul(dcm, eciState[3:6].T).T
 #     return icrsState + earth_state
 
-def eci2ecef(eci_state, days_since_j2000):
-        q_inertial_to_ecef, omega_ecef = get_inertial_to_ecef(days_since_j2000)
-        ecef_state      = np.zeros(6)
-        ecef_state[0:3] = quaternion.rotate_vectors(q_inertial_to_ecef, eci_state[0:3])
-        ecef_state[3:6] = quaternion.rotate_vectors(q_inertial_to_ecef, eci_state[3:6]) \
-                            + np.cross(omega_ecef, ecef_state[0:3])
-        return ecef_state
+def dir_inertial_to_radec(vector_inertial):
+    dist    = np.linalg.norm(vector_inertial)
+    dir     = vector_inertial/np.linalg.norm(vector_inertial)
 
-def ecef2eci(ecef_state, days_since_j2000):
-    q_ecef_to_inertial, omega_ecef = get_ecef_to_inertial(days_since_j2000)
-    eci_state       = np.zeros(6)
-    eci_state[0:3]  = quaternion.rotate_vectors(q_ecef_to_inertial, ecef_state[0:3])
-    eci_state[3:6]  = quaternion.rotate_vectors(q_ecef_to_inertial, ecef_state[3:6]) \
-                        + np.cross(omega_ecef, eci_state[0:3])
-    return eci_state
+    RA      = np.atan2(dir[1], dir[0])
+    DEC     = np.arcsin(dir[2]/dist)
+    return np.array([RA, DEC])
 
-def get_inertial_to_ecef(days_since_j2000):
-    degrees_per_day     = 360.9856123035484
-    gamma               = np.radians(degrees_per_day*days_since_j2000 + 280.46)
-    R_inertial_to_ecef  = np.array([[np.cos(gamma),     np.sin(gamma),  0],
-                                    [-np.sin(gamma),    np.cos(gamma),  0],
-                                    [0,                 0,              1]])
-    q_inertial_to_ecef  = quaternion.from_rotation_matrix(R_inertial_to_ecef)
-    omega_ecef  = np.array([0, 0, degrees_per_day/(24*3600)])
-    return q_inertial_to_ecef, omega_ecef
 
-def get_ecef_to_inertial(days_since_j2000):
-    degrees_per_day     = 360.9856123035484
-    gamma               = np.radians(degrees_per_day*days_since_j2000 + 280.46)
-    R_ecef_to_inertial  = np.array([[np.cos(gamma), -np.sin(gamma), 0],
-                                    [np.sin(gamma), np.cos(gamma),  0],
-                                    [0,             0,              1]])
-    q_ecef_to_inertial  = quaternion.from_rotation_matrix(R_ecef_to_inertial)
-    omega_ecef  = np.array([0, 0, -degrees_per_day/(24*3600)])
-    return q_ecef_to_inertial, omega_ecef
+def pci2pcpf(pci_state, planet, days_since_j2000):
+        q_inertial_to_pcpf, omega_pcpf = get_pci_to_pcpf(planet, days_since_j2000)
+        pcpf_state      = np.zeros(6)
+        pcpf_state[0:3] = quaternion.rotate_vectors(q_inertial_to_pcpf, pci_state[0:3])
+        pcpf_state[3:6] = quaternion.rotate_vectors(q_inertial_to_pcpf, pci_state[3:6]) \
+                            + np.cross(omega_pcpf, pcpf_state[0:3])
+        return pcpf_state
 
-def get_hill_to_inertial(state, mu_earth):
+def pcpf2pci(pcpf_state, planet, days_since_j2000):
+    q_pcpf_to_inertial, omega_pcpf = get_pcpf_to_pci(planet, days_since_j2000)
+    pci_state       = np.zeros(6)
+    pci_state[0:3]  = quaternion.rotate_vectors(q_pcpf_to_inertial, pcpf_state[0:3])
+    pci_state[3:6]  = quaternion.rotate_vectors(q_pcpf_to_inertial, pcpf_state[3:6]) \
+                        + np.cross(omega_pcpf, pci_state[0:3])
+    return pci_state
+
+def get_pci_to_pcpf(planet, days_since_j2000):
+    degrees_per_day     = 360 / planet.sidereal_day * (24*3600)
+    rot_offset          = planet.rot_offset
+    gamma               = np.radians(degrees_per_day*days_since_j2000 + rot_offset)
+    q_inertial_to_pcpf  = quaternion.from_rotation_vector(-gamma*np.array([0, 0, 1]))
+    omega_pcpf  = np.array([0, 0, degrees_per_day/(24*3600)])
+    return q_inertial_to_pcpf, omega_pcpf
+
+def get_pcpf_to_pci(planet, days_since_j2000):
+    degrees_per_day     = 360 / planet.sidereal_day * (24*3600)
+    rot_offset          = planet.rot_offset
+    gamma               = np.radians(degrees_per_day*days_since_j2000 + rot_offset)
+    q_pcpf_to_inertial  = quaternion.from_rotation_vector(gamma*np.array([0, 0, 1]))
+    omega_pcpf  = np.array([0, 0, -degrees_per_day/(24*3600)])
+    return q_pcpf_to_inertial, omega_pcpf
+
+def get_hill_to_pci(state, mu):
     '''
     Calculates the rotation matrix from the Hill frame to the inertial frame
     :param state: current state vector [x, y, z, vx, vy, vz]
@@ -76,12 +81,12 @@ def get_hill_to_inertial(state, mu_earth):
     R_hill_to_inertial = np.array([r_normalized, np.cross(h_normalized, r_normalized), h_normalized]).T
     q_hill_to_inertial = quaternion.from_rotation_matrix(R_hill_to_inertial)
 
-    a           = OEConvert.semimajor_axis(state, mu_earth)
-    n           =  np.sqrt(mu_earth/a**3)
+    a           = OEConvert.semimajor_axis(state, mu)
+    n           =  np.sqrt(mu/a**3)
     omega_hill  = np.array([0, 0, n])
     return q_hill_to_inertial, omega_hill
 
-def get_lvlh_to_inertial(state, mu_earth):
+def get_lvlh_to_pci(state, mu):
     '''
     Calculates the rotation matrix from the LVLH frame to the inertial frame
     :param state: current state vector [x, y, z, vx, vy, vz]
@@ -98,19 +103,19 @@ def get_lvlh_to_inertial(state, mu_earth):
     R_lvlh_to_inertial = np.array([np.cross(-h_normalized, -r_normalized), -h_normalized, -r_normalized]).T
     q_lvlh_to_inertial = quaternion.from_rotation_matrix(R_lvlh_to_inertial)
     
-    a           = OEConvert.semimajor_axis(state, mu_earth)
-    n           =  np.sqrt(mu_earth/a**3)
+    a           = OEConvert.semimajor_axis(state, mu)
+    n           =  np.sqrt(mu/a**3)
     omega_lvlh  = np.array([0, n, 0])
     return q_lvlh_to_inertial, omega_lvlh
 
-def ecef2lla(ecefState):
-    x = ecefState[0]
-    y = ecefState[1]
-    z = ecefState[2]
+def pcpf2lla(pcpfState, planet):
+    x = pcpfState[0]
+    y = pcpfState[1]
+    z = pcpfState[2]
 
     # WGS84 ellipsoid parameters
-    a = 6378137.0
-    b = 6356752.3142
+    a = planet.radius
+    b = planet.polar_radius
 
     e = np.sqrt(1 - b**2 / a**2)
 
@@ -147,24 +152,24 @@ def ecef2lla(ecefState):
     alt = rho * np.cos(lat) + z * np.sin(lat) - a**2/N
     return np.array([np.degrees(lat), np.degrees(lon), alt])
 
-def lla2ecef(llaState):
+def lla2pcpf(llaState, planet):
     # unpacking the input vector
     lat = np.radians(llaState[0])
     lon = np.radians(llaState[1])
     alt = llaState[2]
 
     # WGS84 ellipsoid parameters
-    earth_semimajor = 6378137.0
-    earth_semiminor = 6356752.3142
+    planet_semimajor = planet.radius
+    planet_semiminor = planet.polar_radius
 
     # Flattening of the ellipsoid (WGS84)
-    f = (earth_semimajor - earth_semiminor) / earth_semimajor
+    f = (planet_semimajor - planet_semiminor) / planet_semimajor
 
     # Eccentricity of the reference ellipsoid (WGS84)
     e = np.sqrt(f * (2 - f))
 
     # Distance between z axis and normal to ellipsoid
-    N = earth_semimajor / np.sqrt(1 - e**2 * (np.sin(lat))**2)
+    N = planet_semimajor / np.sqrt(1 - e**2 * (np.sin(lat))**2)
 
     x = (N + alt) * np.cos(lat) * np.cos(lon)
     y = (N + alt) * np.cos(lat) * np.sin(lon)

@@ -14,7 +14,7 @@ satellites:
       alt       : 423000              #m
       ecc       : 0.00
       inc       : 51.6                #deg
-      raan      : 0.0                 #deg
+      lan       : 0.0                 #deg
       argp      : 0.0                 #deg
       TA        : 0.0                 #deg
     q_body_to_inertial  : [1, 0, 0, 0]

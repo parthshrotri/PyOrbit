@@ -39,7 +39,7 @@ def stl2mesh3d(stl_mesh):
 def model(satellite):
     # Unpack model location and axis order
     model       = satellite.model
-    axis_order  = satellite.axis_order
+    axis_order  = satellite.model_axis_order
     colorscale  = satellite.colorscale
 
     # Get model data

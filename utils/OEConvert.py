@@ -5,10 +5,10 @@ def cartesian_to_keplerian(state, mu):
     a       = semimajor_axis(state, mu)
     e       = np.linalg.norm(eccentricity(state, mu))
     i       = inclination(state)
-    raan    = RAAN(state)
+    lan    = LAN(state)
     omega   = argument_of_periapse(state, mu)
     f       = true_anomaly(state, mu)
-    return np.array([a, e, i, raan, omega, f])
+    return np.array([a, e, i, lan, omega, f])
 
 def keplerian_to_cartesian(kep, mu):
     disp.kep_elem("Input", kepDeg2Rad(kep))
@@ -68,7 +68,7 @@ def node_vector(state):
     n = np.cross(np.array([0, 0, 1]), h)
     return n
 
-def RAAN(state):
+def LAN(state):
     node        = node_vector(state)
     node_mag    = np.sqrt(np.dot(node, node))
 
@@ -125,8 +125,8 @@ def sso_inclination(a, e, planet):
     year_length = planet.year_length
 
     n_bar = np.sqrt(mu/a**3)
-    raan_rate_sso = 2*np.pi/(year_length * 24 * 3600)
-    i_rad = np.arccos(raan_rate_sso / ((-3/2 * (R/a)**2 * J2 * n_bar / (1-e**2)**2)))
+    lan_rate_sso = 2*np.pi/(year_length * 24 * 3600)
+    i_rad = np.arccos(lan_rate_sso / ((-3/2 * (R/a)**2 * J2 * n_bar / (1-e**2)**2)))
     i_deg = np.degrees(i_rad)
     return i_deg
 
@@ -141,14 +141,14 @@ def position(kep, mu):
     a       = kep[0]
     e       = kep[1]
     i       = np.radians(kep[2])
-    raan    = np.radians(kep[3])
+    lan    = np.radians(kep[3])
     omega   = np.radians(kep[4])
     f       = np.radians(kep[5])
 
     r       = a*(1-e**2)/(1+e*np.cos(f))
     theta   = omega + f
-    pos     = r * np.array([np.cos(theta)*np.cos(raan) - np.cos(i)*np.sin(raan)*np.sin(theta),
-                            np.cos(theta)*np.sin(raan) + np.cos(i)*np.cos(raan)*np.sin(theta),
+    pos     = r * np.array([np.cos(theta)*np.cos(lan) - np.cos(i)*np.sin(lan)*np.sin(theta),
+                            np.cos(theta)*np.sin(lan) + np.cos(i)*np.cos(lan)*np.sin(theta),
                             np.sin(i)*np.sin(theta)])
     return pos
 
@@ -156,15 +156,15 @@ def velocity(kep, mu):
     a       = kep[0]
     e       = kep[1]
     inc     = np.radians(kep[2])
-    raan    = np.radians(kep[3])
+    lan    = np.radians(kep[3])
     omega   = np.radians(kep[4])
     f       = np.radians(kep[5])
 
     theta   = omega + f
 
     h       = angular_momentum_from_OE(a, e, mu)
-    vel_vec = mu/h*np.array([-(np.cos(raan)*(np.sin(theta) + e*np.sin(omega)) + np.sin(raan)*(np.cos(theta)+ e*np.cos(omega))*np.cos(inc)),
-                             -(np.sin(raan)*(np.sin(theta) + e*np.sin(omega)) - np.cos(raan)*(np.cos(theta) + e*np.cos(omega))*np.cos(inc)),
+    vel_vec = mu/h*np.array([-(np.cos(lan)*(np.sin(theta) + e*np.sin(omega)) + np.sin(lan)*(np.cos(theta)+ e*np.cos(omega))*np.cos(inc)),
+                             -(np.sin(lan)*(np.sin(theta) + e*np.sin(omega)) - np.cos(lan)*(np.cos(theta) + e*np.cos(omega))*np.cos(inc)),
                              (np.cos(theta) + e*np.cos(omega))*np.sin(inc)])
                          
     return vel_vec

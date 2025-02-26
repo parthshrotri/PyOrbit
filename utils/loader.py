@@ -5,7 +5,7 @@ import numpy as np
 import Core.simulator as sim
 import Core.visualizer as vis
 import Dynamics.body as body
-import Dynamics.satellite as sat
+import Vehicles.satellite as sat
 import utils.OEConvert as OEConvert
 
 def populate_sim(sim_file):
@@ -33,16 +33,6 @@ def populate_sim(sim_file):
         satellite   = satellites[key]
 
         sat_config  = satellite["vehicle_conf"]
-        sat_props   = yaml.safe_load(open(sat_config, 'r'))
-
-        name        = sat_props["name"]
-        mass        = sat_props["mass"]
-        J           = np.diag(sat_props["inertia"])
-        model       = sat_props["model"]
-        colorscale  = sat_props["colorscale"]
-        axis_order  = sat_props["axis_order"]
-        lights      = np.array([sat_props["nav_red"], 
-                                sat_props["nav_green"]])
 
         if "cartesian" in satellite.keys():
             r       = np.array(satellite["cartesian"]["r"])
@@ -68,11 +58,11 @@ def populate_sim(sim_file):
                     i = OEConvert.sso_inclination(a, e, central_body)
             else:
                 i   = kep["inc"]
-            raan    = kep["raan"]
+            lan     = kep["lan"]
             argp    = kep["argp"]
             TA      = kep["TA"]
 
-            state   = OEConvert.keplerian_to_cartesian([a, e, i, raan, argp, TA], central_body.mu)
+            state   = OEConvert.keplerian_to_cartesian([a, e, i, lan, argp, TA], central_body.mu)
         else:
             print("No initial state specified")
             exit()
@@ -81,9 +71,7 @@ def populate_sim(sim_file):
         omega_body  = np.array(satellite["omega_body"])
         state       = np.hstack((state, quat, omega_body))
 
-        mass_prop   = (mass, J)
-        visual_prop = (model, colorscale, axis_order, lights)
-        satellite   = sat.Satellite(name, t0, state, mass_prop, visual_prop, central_body.mu)
+        satellite   = sat.Satellite(t0, state, central_body, sat_config)
         sats.append(satellite)
 
     simulator = sim.Simulator(central_body, t0, tf, dt, sats, save_file)

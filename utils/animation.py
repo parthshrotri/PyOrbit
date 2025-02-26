@@ -112,7 +112,7 @@ def att_inertial(satellite, update_rate):
     animation   = create_3d_animation(fig, plotformat, sat_state_plot, vehicle_model, plot_thrusters, update_rate)
     return animation
 
-def eci(satellite, planet, update_rate):
+def pci(satellite, planet, update_rate):
     scale   = 350000.0
 
     max_range = np.max(np.abs(satellite.state_history[:,0:3]))
@@ -123,7 +123,7 @@ def eci(satellite, planet, update_rate):
     xaxis   = dict(range=[min_axis, max_axis])
     yaxis   = dict(range=[min_axis, max_axis])
     zaxis   = dict(range=[min_axis, max_axis])
-    plotformat = ["ECI Trajectory", scale, xaxis, yaxis, zaxis]
+    plotformat = [f"{planet.name[0]}CI Trajectory", scale, xaxis, yaxis, zaxis]
 
     sat_pos             = satellite.state_history[:,0:3]
     sat_orient          = satellite.state_history[:,6:10]
@@ -147,14 +147,16 @@ def groundtrack(satellite, planet, update_rate):
     animation   = create_groundtrack_animation(animation, satellite, planet, update_rate)
     animation.update_geos(projection_type="equirectangular",
                     showland=True, 
+                    coastlinewidth=2,
                     landcolor="rgb(52, 165, 111)",
                     showocean=True,
                     oceancolor="rgb(0, 204, 255)",
-                    showcountries=True, countrycolor="Black",
+                    showcountries=True, countrycolor="darkgreen",
                     showlakes=True, lakecolor="rgb(0, 130, 255)",
                     showrivers=True, rivercolor="rgb(0, 130, 255)",
-                    lonaxis=dict(dtick=10, showgrid=True),
-                    lataxis=dict(dtick=10, showgrid=True))
+                    lonaxis=dict(dtick=20, showgrid=True, gridcolor="grey"),
+                    lataxis=dict(dtick=20, showgrid=True, gridcolor="grey"),
+                    resolution=50)
     return animation
 
 def ecef(satellite, planet, update_rate):

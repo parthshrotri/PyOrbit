@@ -1,9 +1,14 @@
 # Properties
-  name        : "Shuttle"
-  mass        : 100.0               #kg
-  inertia     : [100.0, 50.0, 25.0] #kg*m^2
-  model       : "Models/Shuttle.stl"
-  colorscale  : "Purples"
-  axis_order  : [0, 1, 2]
-  nav_red     : [-.137, 0.31, -0.06]
-  nav_green   : [-.137, -0.31, -0.06]
+  name              : "Shuttle"
+  mass              : 100.0               #kg
+  inertia           : [100.0, 50.0, 25.0] #kg*m^2
+  model             : "Models/Shuttle.stl"
+  colorscale        : "Purples"
+  model_axis_order  : [0, 1, 2]
+  nav_red           : [-.137, 0.31, -0.06]
+  nav_green         : [-.137, -0.31, -0.06]
+  control:
+    orient_control_kp : 7.0
+    orient_control_kd : 35
+  star_tracker:
+    body_to_boresight : [-0.70710678118, 0, 0, 0.70710678118]

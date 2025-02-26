@@ -1,23 +1,44 @@
+import yaml
 import numpy as np
 import quaternion
+
 import utils.convert as convert
 import utils.attitude_ref as att_ref
+import Vehicles.GNC.control as ctrl
+import Vehicles.GNC.sensors as nav
 
 class Satellite():
-    def __init__(self, name, t0, state, mass_prop, visual_prop, mu):
-        # Populate the properties
-        self.mass                   = mass_prop[0]
-        self.J                      = mass_prop[1]
-        self.name                   = name
+    def __init__(self, t0, state, central_body, sc_yaml):
+        mu                      = central_body.mu
+        
+        # Get properties from the spacecraft yaml
+        sat_props   = yaml.safe_load(open(sc_yaml, 'r'))
+
+        # Set the name
+        self.name        = sat_props["name"]
+
+        # Populate the mass/inertia properties
+        self.mass                   = float(sat_props["mass"])
+        self.J                      = np.diag(sat_props["inertia"])
 
         # Set the visualization properties
-        self.model                  = visual_prop[0]
-        self.colorscale             = visual_prop[1]
-        self.axis_order             = visual_prop[2]
-        self.lights                 = visual_prop[3]
+        self.model              = sat_props["model"]
+        self.colorscale         = sat_props["colorscale"]
+        self.model_axis_order   = sat_props["model_axis_order"]
+        self.lights             = np.array([sat_props["nav_red"], 
+                                            sat_props["nav_green"]])
 
-        # Set the control gains for attitude control
-        self.orientation_control_gains  = np.array([7.0, 35])
+        # Set the create the controller
+        control_params          = sat_props["control"]
+        kp                      = control_params["orient_control_kp"]
+        kd                      = control_params["orient_control_kd"]
+        orient_control_gains    = [kp, kd]
+        self.controller         = ctrl.Controller(orient_control_gains)
+
+        # Create the star tracker
+        star_tracker_props  = sat_props["star_tracker"]
+        body_to_boresight   = quaternion.from_float_array(star_tracker_props["body_to_boresight"])
+        self.star_tracker   = nav.StarTracker(body_to_boresight.conjugate())
 
         # Initialize the history arrays
         self.init_state             = state
@@ -28,8 +49,8 @@ class Satellite():
         self.hill_to_body_hist      = np.array([quaternion.as_float_array(self.get_hill_to_body(mu))])
 
         t0                          = convert.daysSinceJ2000(t0)
-        self.ecef_hist              = np.array([self.get_ecef_state(t0)])
-        self.lla_hist               = np.array([self.get_lla(t0)])
+        self.pcpf_hist              = np.array([self.get_pcpf_state(central_body, t0)])
+        self.lla_hist               = np.array([self.get_lla(central_body, t0)])
 
     def get_state(self):
         return self.state_history[-1,:]
@@ -52,15 +73,15 @@ class Satellite():
     def get_ang_vel(self):
         return self.state_history[-1,10:13]
     
-    def get_ecef_state(self, days_epoch):
-        eci_state       = self.get_linear_state()
-        ecef_state      = att_ref.eci2ecef(eci_state, days_epoch)
-        return ecef_state
+    def get_pcpf_state(self, planet, days_epoch):
+        pci_state       = self.get_linear_state()
+        pcpf_state      = att_ref.pci2pcpf(pci_state, planet, days_epoch)
+        return pcpf_state
 
-    def get_lla(self, days_epoch):
-        eci_state       = self.get_linear_state()
-        ecef_state      = att_ref.eci2ecef(eci_state, days_epoch)
-        lla_state       = att_ref.ecef2lla(ecef_state)
+    def get_lla(self, planet, days_epoch):
+        pci_state       = self.get_linear_state()
+        pcpf_state      = att_ref.pci2pcpf(pci_state, planet, days_epoch)
+        lla_state       = att_ref.pcpf2lla(pcpf_state, planet)
         return lla_state
     
     def update_state_history(self, state):
@@ -78,13 +99,13 @@ class Satellite():
         self.hill_to_body_hist  = np.vstack((self.hill_to_body_hist, 
                                              quaternion.as_float_array(hill_to_body)))
         
-    def update_ecef_hist(self, days_epoch):
-        self.ecef_hist  = np.vstack((self.ecef_hist, 
-                                     self.get_ecef_state(days_epoch)))
+    def update_pcpf_hist(self, planet, days_epoch):
+        self.pcpf_hist  = np.vstack((self.pcpf_hist, 
+                                     self.get_pcpf_state(planet, days_epoch)))
         
-    def update_lla_hist(self, days_epoch):
+    def update_lla_hist(self, planet, days_epoch):
         self.lla_hist   = np.vstack((self.lla_hist, 
-                                     self.get_lla(days_epoch)))
+                                     self.get_lla(planet, days_epoch)))
         
     def get_lvlh_to_body(self, mu):
         quat                = self.get_quat()
@@ -100,13 +121,13 @@ class Satellite():
 
     def get_inertial_to_lvlh(self, mu):
         state                           = self.get_linear_state()
-        q_lvlh_to_inertial, omega_hill  = att_ref.get_lvlh_to_inertial(state, mu)
+        q_lvlh_to_inertial, omega_hill  = att_ref.get_lvlh_to_pci(state, mu)
         q_inertial_to_lvlh              = q_lvlh_to_inertial.conjugate()
         return q_inertial_to_lvlh
     
     def get_inertial_to_hill(self, mu):
         state                           = self.get_linear_state()
-        q_hill_to_inertial, omega_hill  = att_ref.get_hill_to_inertial(state, mu)
+        q_hill_to_inertial, omega_hill  = att_ref.get_hill_to_pci(state, mu)
         q_inertial_to_hill              = q_hill_to_inertial.conjugate()
         return q_inertial_to_hill
 
@@ -114,41 +135,24 @@ class Satellite():
         sat_target_orient               = self.get_inertial_to_lvlh(mu)
         return sat_target_orient
     
-    def update_state_hist(self, t0, t_now, state, sat_target_orient, mu):
+    def update_state_hist(self, t0, t_now, state, sat_target_orient, central_body):
+        mu              = central_body.mu
         days_epoch      = convert.daysSinceJ2000(t0, t_now)
 
         self.update_state_history(state)
         self.update_target_state_hist(sat_target_orient)
         self.update_lvlh_to_body_hist(self.get_lvlh_to_body(mu))
         self.update_hill_to_body_hist(self.get_hill_to_body(mu))
-        self.update_ecef_hist(days_epoch)
-        self.update_lla_hist(days_epoch)
+        self.update_pcpf_hist(central_body, days_epoch)
+        self.update_lla_hist(central_body, days_epoch)
         
     def get_inputs(self, mu):
         state               = self.get_linear_state()
         rotation_state      = self.get_rotational_state()
         sat_target_orient   = self.get_target_orient(mu)
         
-        T_body = self.get_thrust_command(state)
-        L_body = self.get_torque_command(rotation_state, sat_target_orient)
+        T_body = self.controller.get_thrust_command(state)
+        L_body = self.controller.get_torque_cmd(rotation_state, sat_target_orient)
 
         return sat_target_orient, T_body, L_body
-        
-    def get_thrust_command(self, state):
-        return np.array([0, 0, 0])
-        
-    def get_torque_command(self, rot_state, q_target):
-        q_now   = quaternion.as_quat_array(rot_state[0:4])
-        omega   = rot_state[4:7]
-
-        # Get the control gains
-        k_p = self.orientation_control_gains[0]
-        k_d = self.orientation_control_gains[1]
-
-        # Compute the quaternion error
-        dq  =   q_now*q_target.inverse()
-
-        # Compute the control input
-        u   =   -k_p*np.array([dq.x, dq.y, dq.z]) - k_d*omega
-        return u
         

@@ -217,7 +217,7 @@ def draw_planet(planet):
     planet  = go.Surface(x=x, y=y, z=z, opacity=1.0, colorscale=planet.colors, showscale=False)
     return planet
 
-def eci(satellites, body): 
+def pci(satellites, body): 
     scale = 350000.0 
     objs = [draw_planet(body)]
     max_global_range = 0
@@ -247,7 +247,7 @@ def eci(satellites, body):
     zaxis   = dict(range=[min_axis, max_axis])
 
     fig = go.Figure(data=objs)
-    fig.update_layout(title="ECI Trajectory",scene = dict(xaxis_title='X [m]',
+    fig.update_layout(title=f"{body.name[0]}CI Trajectory",scene = dict(xaxis_title='X [m]',
                                                           yaxis_title='Y [m]',
                                                           zaxis_title='Z [m]',
                                                             aspectmode="cube", 
@@ -273,7 +273,7 @@ def create_ground_circle(radius, R, center_lat, center_lon):
     lon_points = np.degrees(lon_points)
 
     circle = go.Scattergeo(lat=lat_points, lon=lon_points, mode="lines", 
-                           line=dict(width=2, color="black"), 
+                           line=dict(width=2, color="whitesmoke"), 
                            showlegend=False)
     return circle
 
@@ -284,7 +284,6 @@ def ground_track_frame(sc, body, idx):
     alt             = state_lla_hist[idx,2]
     angle           = np.arccos(R_body/(R_body + alt))
     arc_len         = R_body*angle
-
     num_points      = len(state_lla_hist[0:idx,0])
     vis_range       = create_ground_circle(arc_len, R_body, state_lla_hist[idx,0], state_lla_hist[idx,1])
 
@@ -294,7 +293,7 @@ def ground_track_frame(sc, body, idx):
     sc_icon_color   = plotly.colors.get_colorscale(sc.colorscale)[-1]
     last_pos        = go.Scattergeo(lat=[state_lla_hist[idx,0]], lon=[state_lla_hist[idx,1]],
                                 mode="markers", marker=dict(size=15, color=sc_icon_color, 
-                                                            symbol = "arrow-right"), 
+                                                            symbol = "triangle-right"), 
                                 name=sc.name)
     objs.extend([vis_range, traj, last_pos])
     return objs
@@ -311,20 +310,22 @@ def ground_track(spacecrafts, body):
                                 color="RebeccaPurple"))
     fig.update_geos(projection_type = "equirectangular",
                     showland=True, 
+                    coastlinewidth=2,
                     landcolor="rgb(52, 165, 111)",
                     showocean=True,
                     oceancolor="rgb(0, 204, 255)",
-                    showcountries=True, countrycolor="Black",
+                    showcountries=True, countrycolor="darkgreen",
                     showlakes=True, lakecolor="rgb(0, 130, 255)",
                     showrivers=True, rivercolor="rgb(0, 130, 255)",
-                    lonaxis=dict(range=[-180, 180], dtick = 10, showgrid=True),
-                    lataxis=dict(range=[-90, 90], dtick = 10, showgrid=True))
+                    lonaxis=dict(range=[-180, 180], dtick = 20, showgrid=True, gridcolor="grey"),
+                    lataxis=dict(range=[-90, 90], dtick = 20, showgrid=True, gridcolor="grey"),
+                    resolution=50)
     return fig
 
 def ecef(satellites, body):
     ecef_fig = ground_track(satellites, body)
-    ecef_fig.update_layout(title="ECEF Trajectory")
-    ecef_fig.update_geos(lonaxis=dict(range=[-180, 180]),
-                         lataxis=dict(range=[-180, 180]))
+    ecef_fig.update_layout(title=f"ECEF Trajectory")
+    ecef_fig.update_geos(lonaxis=dict(range=[-180, 180], dtick = 20, showgrid=True, gridcolor="grey"),
+                         lataxis=dict(range=[-180, 180], dtick = 20, showgrid=True, gridcolor="grey"))
     ecef_fig.update_geos(projection_type = "orthographic")
     return ecef_fig
